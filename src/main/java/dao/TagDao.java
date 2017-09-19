@@ -51,4 +51,5 @@ public class TagDao {
     public List<TagsRecord> getAllTagsRecords(String tagName) {
         return dsl.selectFrom(TAGS).where(TAGS.TAG.eq(tagName)).fetch();
     }
+
 }

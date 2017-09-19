@@ -37,10 +37,11 @@ public class TagController {
     @Path("/{tag}")
     public List<ReceiptResponse> getReceiptsForTag(@PathParam("tag") String tagName) {
         List<TagsRecord> tagsRecords = tags.getAllTagsRecords(tagName);
-        List<ReceiptsRecord> receiptRecords = new ArrayList<ReceiptsRecord>();
+        List<ReceiptResponse> receiptRecords = new ArrayList<ReceiptResponse>();
         if(null != tagsRecords && !tagsRecords.isEmpty())
             for(TagsRecord tagRecord : tagsRecords)
-                receiptRecords.add(receipts.getReceiptForId(tagRecord.getId()));
-        return receiptRecords.stream().map(ReceiptResponse::new).collect(toList());
+                receiptRecords.add(new ReceiptResponse(receipts.getReceiptForId(tagRecord.getId()),new ArrayList<>()));
+        return receiptRecords;
+        //return receiptRecords.stream().map(ReceiptResponse::new).collect(toList());
     }
 }
