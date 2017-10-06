@@ -39,12 +39,11 @@ public class TagDao {
         if(tagsRecords.size() == 0)
             insert(tag,receiptId);
         else
-            delete(tagsRecords);
+            delete(tag, receiptId);
     }
 
-    public void delete(List<TagsRecord> tagsRecords){
-        for(TagsRecord record : tagsRecords)
-            dsl.executeDelete(record);
+    public void delete(String tag, Integer receiptId){
+        dsl.deleteFrom(TAGS).where(TAGS.ID.eq(receiptId)).and(TAGS.TAG.eq(tag)).execute();
     }
 
 

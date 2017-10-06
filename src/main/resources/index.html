@@ -13,9 +13,10 @@
             border: 1px solid #229;
             width: 100px;
             float: right;
-            font-size: 2em;
+            font-size: 1em;
             color: white;
             text-align: center;
+            margin: 10px;
         }
 
         #receiptList {
@@ -32,6 +33,9 @@
             display: none;
         }
 
+        .camera-entry{
+            display: none;
+        }
         #receiptList {
             width: 80%;
             display: table;
@@ -77,14 +81,26 @@
             border-radius: 16px;
         }
 
+        video {
+            width: 550px;
+            height: 450px;
+            border: 1px solid black;
+        }
+        #vidwrap {
+            margin: 20px 0;
+        }
+        #start, #snapshot {
+            height: 3em;
+        }
+
     </style>
     <script>
         // This is the idiomatic way to ensure that JQuery does not
         // execute until the page has loaded
         $(function(){
             const api = ""; // <- do not need a root api URL if this page is served directly by the API
-
-            $.getJSON(api+"/receipts", function(receipts){
+            updateList();
+            /*$.getJSON(api+"/receipts", function(receipts){
                 for(var i=0; i < receipts.length; i++) {
                     var receipt = receipts[i];
                     $(`<div id="${receipt.id}" class="receipt "><div class="time RLBCell"> ${receipt.created}</div><div class="merchant RLBCell">${receipt.merchantName}</div><div  class="amount RLBCell">${receipt.value}</div><div class="tags RLBCell"><button id="addtag${receipt.id}" class="add-tag">Add +</button></div>`)
@@ -97,7 +113,7 @@
                     $(".add-tag").show();
                 }
 
-            })
+            }) */
 
             $('#add-receipt').on('click', function () {
                 $('.receipt-entry').show();
@@ -109,6 +125,19 @@
                 $('#amount').val('');
                 $('.receipt-entry').hide();
                 console.log('cancel clicked');
+            });
+
+            $('#cancel-snapshot').on('click', function () {
+                $('.camera-entry').hide();
+                $('video').empty();
+                $('video')[0].srcObject.getVideoTracks()[0].stop();
+                console.log('cancel camera clicked');
+            });
+
+            $('#camera').on('click', function () {
+                $('video').empty();
+                $('.camera-entry').show();
+                console.log('Use camera button clicked');
             });
 
 
@@ -138,24 +167,41 @@
                 console.log('Save receipt button clicked');
             });
 
+            function updateList(){
+                $.getJSON(api+"/receipts", function(receipts){
+                    for(var i=0; i < receipts.length; i++) {
+                        var receipt = receipts[i];
+                        addReceiptToList(receipt)
+                    }
+                }).fail(function(){
+                });
+            }
+
             function addReceiptToList(receipt){
                 $(`<div id="${receipt.id}" class="receipt "><div class="time RLBCell"> </div><div class="merchant RLBCell">${receipt.merchantName}</div><div  class="amount RLBCell">${receipt.value}</div><div class="tags RLBCell"><button id="addtag${receipt.id}" class="add-tag">Add +</button></div>`)
                     .appendTo($("#receiptList"));
                 console.log("New receipt added : " + receipt);
+                if(receipt.tags && receipt.tags.length > 0){
+                    receipt.tags.forEach(function(tag){
+                        $(`<div class="tagValue btn-pill">${tag}</div>`).insertBefore($("#addtag" + receipt.id));
+                    });
+                }
+                $(".add-tag").show();
                 $("#addtag" + receipt.id).on('click', function (){
                     var newTagInput = $(`<input type='text' class="tag_input">`);
                     $(this).hide();
                     newTagInput.insertBefore(this);
                     newTagInput.on('keyup', function (e) {
                         if (e.keyCode == 13) {
-                            console.log('1');
+                            console.log('Adding tag');
                             var receiptId = newTagInput.parent().parent()[0].id;
                             var newTag = $(`<div class="tagValue btn-pill">${ $(".tag_input").val()}</div>`);
-                            console.log('2');
+                            var tagVal = $(".tag_input").val();
+                            console.log('Tag value to be added:' + tagVal);
                             var current = $(this);
                             $.ajax({
                                 type: 'PUT',
-                                url:api + "/tags/" +  $(".tag_input").val(),
+                                url:api + "/tags/" +  tagVal,
                                 contentType: "application/json",
                                 data: JSON.stringify(receiptId),
                                 success: function (id) {
@@ -165,33 +211,92 @@
 
                                 }
                             });
-                            console.log('3');
                         }
                     });
                 });
 
                 $('#receiptList').on('click','.tagValue', function () {
-                    var tagToRemove = $(this)[0].innerText.slice(0,-1);
+                    var tagToRemove = $(this)[0].innerText;
                     var receiptId =$(this).parent().parent()[0].id;
-                    console.log(receiptId);
+                    console.log('Tag to remove :'+tagToRemove+' for receipt id :'+ receiptId);
                     var current = $(this);
                     $.ajax({
                         type: 'PUT',
-                        url:api + "/tags/" +  $(".tag_input").val(),
+                        url:api + "/tags/" + tagToRemove,
                         contentType: "application/json",
                         data: JSON.stringify(receiptId),
                         success: function (id) {
                             current.remove();
+                            console.log('Tag removed');
+
                         }
                     });
 
                 });
             }
-
-
         });
 
 
+
+        let imageCapture;
+        let track;
+        function attachMediaStream(mediaStream) {
+            $('video')[0].srcObject = mediaStream;
+            // Saving the track allows us to capture a photo
+            track = mediaStream.getVideoTracks()[0];
+            imageCapture = new ImageCapture(track);
+        }
+        function startVideo() {
+            $('#snapshot').prop('disabled', false);
+            navigator.mediaDevices.getUserMedia({video: {facingMode: {exact: "environment"}}})
+                .then(attachMediaStream)
+                .catch(error => {
+                navigator.mediaDevices.getUserMedia({video: true})
+                .then(attachMediaStream)
+                .catch(error => {
+                console.log('you are fooked');
+        })
+        })
+        }
+        function takeSnapshot() {
+            // create a CANVAS element that is same size as the image
+            imageCapture.grabFrame()
+                .then(img => {
+                const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            canvas.getContext('2d').drawImage(img, 0, 0);
+            const base64EncodedImageData = canvas.toDataURL('image/png').split(',')[1];
+            $.ajax({
+                url: "/images",
+                type: "POST",
+                data: base64EncodedImageData,
+                contentType: "text/plain",
+                success: function() {},
+            })
+                .then(response => {
+                $('.camera-entry').hide();
+            $(".receipt-entry").show();
+            $("#merchant").val(response.merchantName);
+            $("#amount").val(JSON.stringify(response.amount));
+            //$('video').after(`<div>got response: <pre>${JSON.stringify(response)}</pre></div>`);
+            console.log('Got response: '+`${JSON.stringify(response)}`);
+            $('video').stop();
+            $('video').src = "";
+            $('video')[0].srcObject.getVideoTracks()[0].stop();
+            imageCapture.track.stop();
+            $('#snapshot').prop('disabled', true);
+        })
+        .always(() => console.log('request complete'));
+            // For debugging, you can uncomment this to see the frame that was captured
+            // $('BODY').append(canvas);
+        });
+        }
+        $(function () {
+            $('#start').on('click', startVideo);
+            $('video').on('play', () => $('#snapshot').prop('disabled', false));
+            $('#snapshot').on('click', takeSnapshot);
+        });
     </script>
 </head>
 
@@ -199,6 +304,16 @@
 <DIV id="container">
     <h1>My receipts</h1>
     <div class="button" id="add-receipt">+</div>
+    <div class="button" id="camera">Use Camera</div>
+    <div class="camera-entry">
+        <button id="start">Start Video</button>
+        <button id="snapshot" disabled="true">Take a Snapshot!</button>
+        <button id="cancel-snapshot">Cancel</button>
+        <br>
+        <div id="vidwrap">
+            <video autoplay></video>
+        </div>
+    </div>
     <div class="receipt-entry">
         <input id="merchant" placeholder="merchant"/>
         <input id="amount" placeholder="amount"/>
@@ -207,6 +322,8 @@
             <button id="cancel-receipt">Cancel</button>
         </div>
     </div>
+
+
     <div id="receiptList">
         <div id="receiptListHeader">
             <div class="time RLHCell">Time</div>
